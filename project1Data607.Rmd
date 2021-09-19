@@ -1,0 +1,211 @@
+---
+title: "DATA607 Project One"
+author: "Tyler Baker"
+collaborators: Chinedu Onyeka, Leticia Salazar
+date: "9/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project 1
+
+Import a text file that contains data from a chess tournament. Manipulate and clean the text file so that we can export it as .csv file. 
+
+```{r project 1}
+library(tidyverse)
+url <- "https://raw.githubusercontent.com/tylerbaker01/Data-607-Project-1/main/tournamentinfo.txt"
+chess_tournament_data <- read.table(url, sep= "|", header = FALSE, na.strings = c("B", "H", "U", "X"), row.names = NULL,  fill = TRUE, strip.white = TRUE)
+```
+
+## Restructuring the DF
+Things to do
+:strip bad rows,
+:split dataframe into two seperate dataframes.
+
+
+```{r restructuring the df}
+#strip bad rows.
+new_chess_tournament_data = chess_tournament_data[-c(seq(1, nrow(chess_tournament_data), 3)),]
+rownames(new_chess_tournament_data)<- NULL
+
+#split new dataframe into two
+split_df<- split(new_chess_tournament_data, rep(1:2, 130))
+chess_player_outcomes<- split_df[[1]]
+chess_player_info<- split_df[[2]]
+```
+#clean dfs
+
+##for chess_player_info
+:drop vectors [3:11],
+:name columns,
+:make rownames NULL,
+:take the first four digits after R. This is the opponents prematch rating.
+
+```{r clean chess_player_info}
+#chess_player_info
+clean_chess_player_info <- chess_player_info[1:2]
+clean_chess_player_info<-clean_chess_player_info[-c(1),]
+rownames(clean_chess_player_info)<- NULL
+colnames(clean_chess_player_info)<- c("State", "Prematch Rating")
+clean_chess_player_info$`Prematch Rating` = substr(clean_chess_player_info$`Prematch Rating`,15,18)
+```
+#Combine the two dfs again.
+
+:add chess_player_info into chess_player_outcome
+: for columns [] split the data so that one column will be the result of the match and the next column will be the opposing player.
+:name columns.
+:make rownames NULL.
+:create a new column for avg opponent's prematch rating. Which is equal to sum(opponent's prematch rating)/the number of matches played.
+
+```{r combining dfs}
+chess_player_outcomes<-chess_player_outcomes[1:10]
+chess_player_outcomes<-chess_player_outcomes[-c(1),]
+chess_player_outcomes$state = clean_chess_player_info$State
+chess_player_outcomes$prematch_rating=clean_chess_player_info$`Prematch Rating`
+```
+# split certain columns
+split columns that contained two separate bits of information.
+```{r split vector columns}
+chess_player_outcomes<- separate(chess_player_outcomes, V4, into=c("outcome 1", "round 1 opp"))
+chess_player_outcomes<- separate(chess_player_outcomes, V5, into=c("outcome2", "round 2 opp"))
+chess_player_outcomes<- separate(chess_player_outcomes, V6, into=c("outcome3", "round 3 opp"))
+chess_player_outcomes<- separate(chess_player_outcomes, V7, into=c("outcome4", "round 4 opp"))
+chess_player_outcomes<- separate(chess_player_outcomes, V8, into=c("outcome5", "round 5 opp"))
+chess_player_outcomes<- separate(chess_player_outcomes, V9, into=c("outcome6", "round 6 opp"))
+chess_player_outcomes<- separate(chess_player_outcomes, V10, into=c("outcome7", "round 7 opp"))
+```
+#name columns
+```{r cleaning df, naming columns}
+colnames(chess_player_outcomes)[1] <- "player number"
+colnames(chess_player_outcomes)[2] <- "player name"
+colnames(chess_player_outcomes)[3] <- "total points"
+```
+#tidy
+convert char vectors into numeric vectors.
+add matches played column.
+```{r rearranging table}
+rownames(chess_player_outcomes)<- NULL
+chess_player_outcomes$`player number` <- as.numeric(chess_player_outcomes$`player number`)
+chess_player_outcomes$`round 1 opp` <- as.numeric(chess_player_outcomes$`round 1 opp`)
+chess_player_outcomes$`round 2 opp` <- as.numeric(chess_player_outcomes$`round 2 opp`)
+chess_player_outcomes$`round 3 opp` <- as.numeric(chess_player_outcomes$`round 3 opp`)
+chess_player_outcomes$`round 4 opp` <- as.numeric(chess_player_outcomes$`round 4 opp`)
+chess_player_outcomes$`round 5 opp` <- as.numeric(chess_player_outcomes$`round 5 opp`)
+chess_player_outcomes$`round 6 opp` <- as.numeric(chess_player_outcomes$`round 6 opp`)
+chess_player_outcomes$`round 7 opp` <- as.numeric(chess_player_outcomes$`round 7 opp`)
+chess_player_outcomes$prematch_rating <- as.numeric(chess_player_outcomes$prematch_rating)
+chess_player_outcomes$`matches played` = ((14 - rowSums(is.na(chess_player_outcomes)))/2)
+#14 because the NAs will be counted twice, thus the number of possible matches should also be counted twice
+```
+#handle NAs
+I created a dummy row that only really carried a player number and the average player rating. The average player rating will be called every time an NA appears in a match.
+```{r}
+player_rating_avg <- mean(chess_player_outcomes$prematch_rating)
+chess_player_outcomes <- rbind(chess_player_outcomes, c("player number"= 65,"player name"="NA Replacement", "total points"="0.0", "outcome 1"=NA, "round 1 opp"=65, "outcome 2"=NA, "round 2 opp"=65, "outcome 3"=NA, "round 3 opp"=65, "outcome 4"=NA, "round 4 opp"=65, "outcome 5"=NA, "round 5 opp"=65, "outcome 6"=NA, "round 6 opp"=65, "outcome 7"=NA, "round 7 opp"=65, "state"=NA, "prematch_rating"=player_rating_avg, "matches playes"=NA))
+#created a new row to add the average prematch player rating. This value will replace all the NAs in a numeric column. which will only be each round's opp.
+```
+#split DF again
+```{r}
+chess_player_outcomes_numeric <- chess_player_outcomes[, c("player number", "round 1 opp", "round 2 opp", "round 3 opp", "round 4 opp", "round 5 opp", "round 6 opp", "round 7 opp", "prematch_rating")]
+```
+#Tidy
+```{r}
+chess_player_outcomes_numeric$`player number` <- as.numeric(chess_player_outcomes_numeric$`player number`)
+chess_player_outcomes_numeric$`round 1 opp` <- as.numeric(chess_player_outcomes_numeric$`round 1 opp`)
+chess_player_outcomes_numeric$`round 2 opp` <- as.numeric(chess_player_outcomes_numeric$`round 2 opp`)
+chess_player_outcomes_numeric$`round 3 opp` <- as.numeric(chess_player_outcomes_numeric$`round 3 opp`)
+chess_player_outcomes_numeric$`round 4 opp` <- as.numeric(chess_player_outcomes_numeric$`round 4 opp`)
+chess_player_outcomes_numeric$`round 5 opp` <- as.numeric(chess_player_outcomes_numeric$`round 5 opp`)
+chess_player_outcomes_numeric$`round 6 opp` <- as.numeric(chess_player_outcomes_numeric$`round 6 opp`)
+chess_player_outcomes_numeric$`round 7 opp` <- as.numeric(chess_player_outcomes_numeric$`round 7 opp`)
+chess_player_outcomes_numeric$prematch_rating <- as.numeric(chess_player_outcomes_numeric$prematch_rating)
+```
+#manipulate numerics
+```{r}
+#first, I must make NAs equal to 65. This is where the previous stated dummy row exists.
+chess_player_outcomes_numeric[is.na(chess_player_outcomes_numeric)]=65
+
+#the following gave me opposing player ratings of each match.
+chess_player_outcomes_numeric$opp1rating =  chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 1 opp`)]
+chess_player_outcomes_numeric$opp2rating = chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 2 opp`)]
+chess_player_outcomes_numeric$opp3rating = chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 3 opp`)]
+chess_player_outcomes_numeric$opp4rating = chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 4 opp`)]
+chess_player_outcomes_numeric$opp5rating = chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 5 opp`)]
+chess_player_outcomes_numeric$opp6rating = chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 6 opp`)]
+chess_player_outcomes_numeric$opp7rating = chess_player_outcomes_numeric$prematch_rating[order(chess_player_outcomes_numeric$`round 7 opp`)]
+
+chess_player_outcomes_numeric$`Opp Avg` = rowMeans(chess_player_outcomes_numeric[10:16])
+```
+#merge DFs
+```{r}
+chess_tournament_dirty<- cbind(chess_player_outcomes, chess_player_outcomes_numeric)
+chess_tournament_dirty<- select(chess_tournament_dirty, "player number", "player name", "state", "total points", "prematch_rating", "matches played", "Opp Avg", "round 1 opp", "outcome 1", "opp1rating", "round 2 opp", "outcome2", "opp2rating", "round 3 opp", "outcome3", "opp3rating", "round 4 opp", "outcome4", "opp4rating", "round 5 opp", "outcome5", "opp5rating", "round 6 opp", "outcome6", "opp6rating", "round 7 opp", "outcome7", "opp7rating")
+```
+#Clean up DF
+:I want to remove my dummy row.
+:remove the columns of the form "oppXrating".
+:round "Opp Avg" to the tenth place.
+:make "total points" into numeric
+```{r}
+chess_tournament <- chess_tournament_dirty[-c(65),-c(10,13,16,19,22,25,28)]
+chess_tournament$`total points`<- as.numeric(chess_tournament$`total points`)
+chess_tournament$`Opp Avg` = round(chess_tournament$`Opp Avg`, 1)
+```
+
+#renaming vectors
+```{r}
+#renaming  vectors
+names(chess_tournament)[names(chess_tournament) == "player number"] <- "Player_Number"
+names(chess_tournament)[names(chess_tournament) == "player name"] <- "Player_Name"
+names(chess_tournament)[names(chess_tournament) == "state"] <- "State"
+names(chess_tournament)[names(chess_tournament) == "total points"] <- "Total_Points"
+names(chess_tournament)[names(chess_tournament) == "prematch_rating"] <- "Prematch_Rating"
+names(chess_tournament)[names(chess_tournament) == "matches played"] <- "Matches_Played"
+names(chess_tournament)[names(chess_tournament) == "Opp Avg"] <- "Opp_Avg"
+names(chess_tournament)[names(chess_tournament) == "round 1 opp"] <- "Round_1_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome 1"] <- "Outcome_1"
+names(chess_tournament)[names(chess_tournament) == "round 2 opp"] <- "Round_2_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome2"] <- "Outcome_2"
+names(chess_tournament)[names(chess_tournament) == "round 3 opp"] <- "Round_3_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome3"] <- "Outcome_3"
+names(chess_tournament)[names(chess_tournament) == "round 4 opp"] <- "Round_4_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome4"] <- "Outcome_4"
+names(chess_tournament)[names(chess_tournament) == "round 5 opp"] <- "Round_5_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome5"] <- "Outcome_5"
+names(chess_tournament)[names(chess_tournament) == "round 6 opp"] <- "Round_6_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome6"] <- "Outcome_6"
+names(chess_tournament)[names(chess_tournament) == "round 7 opp"] <- "Round_7_Opp"
+names(chess_tournament)[names(chess_tournament) == "outcome7"] <- "Outcome_7"
+```
+#Change back some vectors into numeric
+```{r}
+chess_tournament$Player_Number <- as.numeric(chess_tournament$Player_Number)
+chess_tournament$Total_Points <- as.numeric(chess_tournament$Total_Points)
+chess_tournament$Prematch_Rating <- as.numeric(chess_tournament$Prematch_Rating)
+chess_tournament$Matches_Played <- as.numeric(chess_tournament$Matches_Played)
+chess_tournament$Opp_Avg <- as.numeric(chess_tournament$Opp_Avg)
+chess_tournament$Round_1_Opp <- as.numeric(chess_tournament$Round_1_Opp)
+chess_tournament$Round_2_Opp <- as.numeric(chess_tournament$Round_2_Opp)
+chess_tournament$Round_3_Opp <- as.numeric(chess_tournament$Round_3_Opp)
+chess_tournament$Round_4_Opp <- as.numeric(chess_tournament$Round_4_Opp)
+chess_tournament$Round_5_Opp <- as.numeric(chess_tournament$Round_5_Opp)
+chess_tournament$Round_6_Opp <- as.numeric(chess_tournament$Round_6_Opp)
+chess_tournament$Round_7_Opp <- as.numeric(chess_tournament$Round_7_Opp)
+```
+#graph
+I want to see to how the average opponent's outcome effected the player's performance. Are there some player's that still won every match, even though their average opponent's rating was high?
+```{r}
+ggplot(chess_tournament, mapping = aes(x= Total_Points, y= Opp_Avg)) +
+  geom_point()
+```
+So in fact, the data shows that the player's who had harder competition actually performed better. This surprised me at first, but now my guess is that the tournament is a round robin, thus by the end of it, most of the good players will be at the end to boost up the average opponent player rating.
+
+
+#write as a csv
+```{r}
+write.csv(chess_tournament, file = "chess_tournament.csv")
+```
+
